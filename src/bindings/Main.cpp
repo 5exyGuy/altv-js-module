@@ -20,6 +20,21 @@ static void OnClient(const v8::FunctionCallbackInfo<v8::Value>& info)
 	resource->SubscribeRemote(*evName, info[1].As<v8::Function>(), V8::SourceLocation::GetCurrent(isolate));
 }
 
+static void OnceClient(const v8::FunctionCallbackInfo<v8::Value>& info)
+{
+	v8::Isolate* isolate = info.GetIsolate();
+
+	V8_CHECK(info.Length() == 2, "2 args expected");
+	V8_CHECK(info[0]->IsString(), "string expected");
+	V8_CHECK(info[1]->IsFunction(), "function expected");
+
+	V8ResourceImpl* resource = V8ResourceImpl::Get(isolate->GetEnteredContext());
+	V8_CHECK(resource, "invalid resource");
+
+	v8::String::Utf8Value evName(isolate, info[0]);
+	resource->SubscribeRemote(*evName, info[1].As<v8::Function>(), V8::SourceLocation::GetCurrent(isolate), true);
+}
+
 static void OffClient(const v8::FunctionCallbackInfo<v8::Value>& info)
 {
 	v8::Isolate* isolate = info.GetIsolate();
@@ -105,9 +120,7 @@ static void GetPlayersByName(const v8::FunctionCallbackInfo<v8::Value>& info)
 	v8::Local<v8::Array> arr = v8::Array::New(isolate, players.GetSize());
 	
 	for (uint32_t i = 0; i < players.GetSize(); ++i)
-	{
-		arr->Set(i, resource->GetOrCreateEntity(players[i].Get(), "Player")->GetJSVal());
-	}
+		arr->Set(i, resource->GetBaseObjectOrNull(players[i]));
 
 	info.GetReturnValue().Set(arr);
 }
@@ -244,26 +257,45 @@ static void ResourceLoaded(const v8::FunctionCallbackInfo<v8::Value>& info)
 	}
 }
 
-static V8Module v8Alt("alt",
+extern V8Class v8Vector3,
+    v8RGBA,
+    v8File,
+    v8BaseObject,
+    v8WorldObject,
+    v8Entity,
+    v8Player,
+    v8Vehicle,
+    v8Blip,
+    v8PointBlip,
+    v8Checkpoint,
+    v8VoiceChannel,
+    v8Colshape,
+    v8ColshapeCylinder,
+    v8ColshapeSphere,
+    v8ColshapeCircle,
+    v8ColshapeCuboid,
+    v8ColshapeRectangle;
+
+extern V8Module v8Alt("alt",
 {
-	"Vector3",
-	"RGBA",
-	"File",
-	"BaseObject",
-	"WorldObject",
-	"Entity",
-	"Player",
-	"Vehicle",
-	"Blip",
-	"PointBlip",
-	"Checkpoint",
-	"VoiceChannel",
-	"Colshape",
-	"ColshapeCylinder",
-	"ColshapeSphere",
-	"ColshapeCircle",
-	"ColshapeCuboid",
-	"ColshapeRectangle"
+	v8Vector3,
+	v8RGBA,
+	v8File,
+	v8BaseObject,
+	v8WorldObject,
+	v8Entity,
+	v8Player,
+	v8Vehicle,
+	v8Blip,
+	v8PointBlip,
+	v8Checkpoint,
+	v8VoiceChannel,
+	v8Colshape,
+	v8ColshapeCylinder,
+	v8ColshapeSphere,
+	v8ColshapeCircle,
+	v8ColshapeCuboid,
+	v8ColshapeRectangle
 },
 [](v8::Local<v8::Context> ctx, v8::Local<v8::Object> exports) {
 	v8::Isolate* isolate = v8::Isolate::GetCurrent();
@@ -281,6 +313,7 @@ static V8Module v8Alt("alt",
 	V8Helpers::RegisterFunc(exports, "restartResource", &RestartResource);
 
 	V8Helpers::RegisterFunc(exports, "onClient", &OnClient);
+	V8Helpers::RegisterFunc(exports, "onceClient", &OnceClient);
 	V8Helpers::RegisterFunc(exports, "offClient", &OffClient);
 	V8Helpers::RegisterFunc(exports, "emitClient", &EmitClient);
 
@@ -294,7 +327,6 @@ static V8Module v8Alt("alt",
 	alt::StringView rootDir = alt::ICore::Instance().GetRootDirectory();
 	exports->Set(isolate->GetEnteredContext(), v8::String::NewFromUtf8(isolate, "rootDir"), v8::String::NewFromUtf8(isolate, rootDir.CStr()));
 
-	alt::IResource* resource = V8ResourceImpl::GetResource(ctx);
-	V8_CHECK(resource, "invalid resource");
-	exports->Set(isolate->GetEnteredContext(), v8::String::NewFromUtf8(isolate, "resourceName"), v8::String::NewFromUtf8(isolate, resource->GetName().CStr()));
+	exports->Set(isolate->GetEnteredContext(), v8::String::NewFromUtf8(isolate, "defaultDimension"), v8::Integer::New(isolate, alt::DEFAULT_DIMENSION));
+	exports->Set(isolate->GetEnteredContext(), v8::String::NewFromUtf8(isolate, "globalDimension"), v8::Integer::New(isolate, alt::GLOBAL_DIMENSION));
 });

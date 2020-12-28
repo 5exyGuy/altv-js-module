@@ -15,34 +15,36 @@ using namespace V8::Vehicle;
 
 static void DriverGetter(v8::Local<v8::String> name, const v8::PropertyCallbackInfo<v8::Value>& info)
 {
-	v8::Isolate* isolate = info.GetIsolate();
+	V8_GET_ISOLATE_CONTEXT_RESOURCE();
+	V8_GET_THIS_BASE_OBJECT(_this, IVehicle);
+	V8_RETURN_BASE_OBJECT(_this->GetDriver());
+}
 
-	V8ResourceImpl* resource = V8ResourceImpl::Get(isolate->GetEnteredContext());
-	V8_CHECK(resource, "invalid resource");
+static void GetAttached(const v8::FunctionCallbackInfo<v8::Value>& info)
+{
+	V8_GET_ISOLATE_CONTEXT_RESOURCE();
+	V8_GET_THIS_BASE_OBJECT(_this, IVehicle);
+	V8_RETURN_BASE_OBJECT(_this->GetAttached());
+}
 
-	V8Entity* _this = V8Entity::Get(info.This());
-	V8_CHECK(_this, "entity is invalid");
-
-	Ref<IVehicle> vehicle = _this->GetHandle().As<IVehicle>();
-
-	Ref<IPlayer> driver = vehicle->GetDriver();
-
-	if (driver)
-		info.GetReturnValue().Set(resource->GetOrCreateEntity(driver.Get(), "Player")->GetJSVal());
-	else
-		info.GetReturnValue().Set(v8::Null(isolate));
+static void GetAttachedTo(const v8::FunctionCallbackInfo<v8::Value>& info)
+{
+	V8_GET_ISOLATE_CONTEXT_RESOURCE();
+	V8_GET_THIS_BASE_OBJECT(_this, IVehicle);
+	V8_RETURN_BASE_OBJECT(_this->GetAttachedTo());
 }
 
 static void DestroyedGetter(v8::Local<v8::String> name, const v8::PropertyCallbackInfo<v8::Value>& info)
 {
 	V8_GET_ISOLATE_CONTEXT();
-	V8_GET_THIS_ENTITY(_this, IVehicle);
-	V8_RETURN_BOOL(_this->IsDestroyed());
+	V8_GET_THIS_BASE_OBJECT(_this, IVehicle);
+	V8_RETURN_BOOLEAN(_this->IsDestroyed());
 }
 
 static void Constructor(const v8::FunctionCallbackInfo<v8::Value>& info)
 {
 	v8::Isolate* isolate = info.GetIsolate();
+	V8_CHECK_CONSTRUCTOR();
 
 	V8_CHECK(info.Length() == 7, "7 args expected");
 	V8_CHECK(info[0]->IsString() || info[0]->IsNumber(), "string or number expected");
@@ -105,13 +107,17 @@ static void StaticGetByID(const v8::FunctionCallbackInfo<v8::Value>& info)
 	alt::Ref<alt::IEntity> entity = alt::ICore::Instance().GetEntityByID(id);
 
 	if (entity && entity->GetType() == alt::IEntity::Type::VEHICLE)
-		info.GetReturnValue().Set(resource->GetOrCreateEntity(entity.Get(), "Entity")->GetJSVal());
+	{
+		V8_RETURN_BASE_OBJECT(entity);
+	}
 	else
-		info.GetReturnValue().Set(v8::Null(isolate));
+	{
+		V8_RETURN_NULL();
+	}
 }
 
-
-static V8Class v8Vehicle("Vehicle", "Entity", Constructor, [](v8::Local<v8::FunctionTemplate> tpl) {
+extern V8Class v8Entity;
+extern V8Class v8Vehicle("Vehicle", v8Entity, Constructor, [](v8::Local<v8::FunctionTemplate> tpl) {
 	v8::Isolate* isolate = v8::Isolate::GetCurrent();
 
 	v8::Local<v8::ObjectTemplate> proto = tpl->PrototypeTemplate();
@@ -169,7 +175,7 @@ static V8Class v8Vehicle("Vehicle", "Entity", Constructor, [](v8::Local<v8::Func
 	proto->SetAccessor(v8::String::NewFromUtf8(isolate, "lockState"), &LockStateGetter, &LockStateSetter);
 	proto->SetAccessor(v8::String::NewFromUtf8(isolate, "daylightOn"), &DaylightOnGetter);
 	proto->SetAccessor(v8::String::NewFromUtf8(isolate, "nightlightOn"), &NightlightOnGetter);
-	proto->SetAccessor(v8::String::NewFromUtf8(isolate, "roofOpened"), &RoofOpenedGetter, &RoofOpenedSetter);
+	proto->SetAccessor(v8::String::NewFromUtf8(isolate, "roofState"), &RoofStateGetter, &RoofStateSetter);
 	proto->SetAccessor(v8::String::NewFromUtf8(isolate, "flamethrowerActive"), &FlamethrowerActiveGetter);
 	proto->SetAccessor(v8::String::NewFromUtf8(isolate, "activeRadioStation"), &ActiveRadioStationGetter, &ActiveRadioStationSetter);
 	proto->SetAccessor(v8::String::NewFromUtf8(isolate, "lightsMultiplier"), &LightsMultiplierGetter, &LightsMultiplierSetter);
@@ -225,6 +231,7 @@ static V8Class v8Vehicle("Vehicle", "Entity", Constructor, [](v8::Local<v8::Func
 	proto->Set(v8::String::NewFromUtf8(isolate, "setArmoredWindowShootCount"), v8::FunctionTemplate::New(isolate, &SetArmoredWindowShootCount));
 	proto->Set(v8::String::NewFromUtf8(isolate, "getDamageStatusBase64"), v8::FunctionTemplate::New(isolate, &GetDamageStatus));
 	proto->Set(v8::String::NewFromUtf8(isolate, "setDamageStatusBase64"), v8::FunctionTemplate::New(isolate, &SetDamageStatus));
+	proto->Set(v8::String::NewFromUtf8(isolate, "repair"), v8::FunctionTemplate::New(isolate, &SetFixed));
 
 	//Script getters/setters
 	proto->SetAccessor(v8::String::NewFromUtf8(isolate, "manualEngineControl"), &ManualEngineControlGetter, &ManualEngineControlSetter);
@@ -232,4 +239,8 @@ static V8Class v8Vehicle("Vehicle", "Entity", Constructor, [](v8::Local<v8::Func
 	//Script methods
 	proto->Set(v8::String::NewFromUtf8(isolate, "getScriptDataBase64"), v8::FunctionTemplate::New(isolate, &GetScriptData));
 	proto->Set(v8::String::NewFromUtf8(isolate, "setScriptDataBase64"), v8::FunctionTemplate::New(isolate, &SetScriptData));
+
+
+	proto->Set(v8::String::NewFromUtf8(isolate, "getAttached"), v8::FunctionTemplate::New(isolate, &GetAttached));
+	proto->Set(v8::String::NewFromUtf8(isolate, "getAttachedTo"), v8::FunctionTemplate::New(isolate, &GetAttachedTo));
 });

@@ -7,6 +7,7 @@ set(PROJECT_NAME js-module)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+add_definitions(-DJS_MODULE_VERSION="${JS_MODULE_VERSION}")
 add_definitions(-DNODE_WANT_INTERNALS=1)
 add_definitions(-DWIN32_CRT_SECURE_NO_DEPRECATE)
 add_definitions(-D_CRT_NONSTDC_NO_DEPRECATE)
@@ -29,6 +30,7 @@ add_definitions(-DBUILDING_CHAKRASHIM=1)
 add_definitions(-DHTTP_PARSER_STRICT=0)
 add_definitions(-DNGHTTP2_STATICLIB)
 add_definitions(-DHAVE_INSPECTOR=1)
+add_definitions(-DALT_SERVER_API)
 
 file(GLOB_RECURSE PROJECT_SOURCE_FILES "src/*.h" "src/*.hpp" "src/*.cpp")
 
@@ -126,5 +128,5 @@ if (WIN32)
 endif (WIN32)
 
 if (UNIX)
-  target_link_libraries(${PROJECT_NAME} ${PROJECT_SOURCE_DIR}/deps/nodejs/lib/libnode.so)
+  target_link_libraries(${PROJECT_NAME} ${PROJECT_SOURCE_DIR}/deps/nodejs/lib/libnode.so.72)
 endif (UNIX)

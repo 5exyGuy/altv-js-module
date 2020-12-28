@@ -2,6 +2,7 @@
 
 #include "helpers/V8Helpers.h"
 #include "helpers/V8ResourceImpl.h"
+#include <algorithm>
 
 using namespace alt;
 
@@ -52,26 +53,9 @@ static void NameGetter(v8::Local<v8::String> name, const v8::PropertyCallbackInf
 
 static void VehicleGetter(v8::Local<v8::String> name, const v8::PropertyCallbackInfo<v8::Value>& info)
 {
-	v8::Isolate* isolate = info.GetIsolate();
-
-	V8ResourceImpl* resource = V8ResourceImpl::Get(isolate->GetEnteredContext());
-	V8_CHECK(resource, "invalid resource");
-
-	V8Entity* _this = V8Entity::Get(info.This());
-	V8_CHECK(_this, "entity is invalid");
-
-	Ref<IPlayer> player = _this->GetHandle().As<IPlayer>();
-
-	Ref<IVehicle> veh = player->GetVehicle();
-
-	if (veh)
-	{
-		info.GetReturnValue().Set(resource->GetOrCreateEntity(veh.Get(), "Vehicle")->GetJSVal());
-	}
-	else
-	{
-		info.GetReturnValue().Set(v8::Null(isolate));
-	}
+	V8_GET_ISOLATE_CONTEXT_RESOURCE();
+	V8_GET_THIS_BASE_OBJECT(_this, IPlayer);
+	V8_RETURN_BASE_OBJECT(_this->GetVehicle());
 }
 
 static void SeatGetter(v8::Local<v8::String> name, const v8::PropertyCallbackInfo<v8::Value>& info)
@@ -273,25 +257,9 @@ static void CurrentWeaponComponentsGetter(v8::Local<v8::String> name, const v8::
 
 static void EntityAimingAtGetter(v8::Local<v8::String> name, const v8::PropertyCallbackInfo<v8::Value>& info)
 {
-	v8::Isolate* isolate = info.GetIsolate();
-
-	V8ResourceImpl* resource = V8ResourceImpl::Get(isolate->GetEnteredContext());
-	V8_CHECK(resource, "invalid resource");
-
-	V8Entity* _this = V8Entity::Get(info.This());
-	V8_CHECK(_this, "entity is invalid");
-
-	Ref<IPlayer> player = _this->GetHandle().As<IPlayer>();
-	Ref<IEntity> aimingAt = player->GetEntityAimingAt();
-
-	if (aimingAt)
-	{
-		info.GetReturnValue().Set(resource->GetOrCreateEntity(aimingAt.Get(), "Entity")->GetJSVal());
-	}
-	else
-	{
-		info.GetReturnValue().Set(v8::Null(isolate));
-	}
+	V8_GET_ISOLATE_CONTEXT_RESOURCE();
+	V8_GET_THIS_BASE_OBJECT(_this, IPlayer);
+	V8_RETURN_BASE_OBJECT(_this->GetEntityAimingAt());
 }
 
 static void EntityAimOffsetGetter(v8::Local<v8::String> name, const v8::PropertyCallbackInfo<v8::Value>& info)
@@ -427,14 +395,14 @@ static void SetDateTime(const v8::FunctionCallbackInfo<v8::Value>& info)
 
 	Ref<IPlayer> player = _this->GetHandle().As<IPlayer>();
 
-	v8::Local<v8::Integer> day = info[0]->ToInteger(isolate);
-	v8::Local<v8::Integer> month = info[1]->ToInteger(isolate);
-	v8::Local<v8::Integer> year = info[2]->ToInteger(isolate);
-	v8::Local<v8::Integer> hour = info[3]->ToInteger(isolate);
-	v8::Local<v8::Integer> minute = info[4]->ToInteger(isolate);
-	v8::Local<v8::Integer> second = info[5]->ToInteger(isolate);
+	int day = std::clamp(static_cast<int>(info[0]->ToInteger(isolate)->Value()), 0, 30);
+	int month = std::clamp(static_cast<int>(info[1]->ToInteger(isolate)->Value()), 0, 11);
+	int year = std::clamp(static_cast<int>(info[2]->ToInteger(isolate)->Value()), 0, 9999);
+	int hour = std::clamp(static_cast<int>(info[3]->ToInteger(isolate)->Value()), 0, 23);
+	int minute = std::clamp(static_cast<int>(info[4]->ToInteger(isolate)->Value()), 0, 59);
+	int second = std::clamp(static_cast<int>(info[5]->ToInteger(isolate)->Value()), 0, 59);
 
-	player->SetDateTime(day->Value(), month->Value(), year->Value(), hour->Value(), minute->Value(), second->Value());
+	player->SetDateTime(day, month, year, hour, minute, second);
 }
 
 static void SetWeather(const v8::FunctionCallbackInfo<v8::Value>& info)
@@ -511,6 +479,21 @@ static void RemoveAllWeapons(const v8::FunctionCallbackInfo<v8::Value>& info)
 	player->RemoveAllWeapons();
 }
 
+static void ClearBloodDamage(const v8::FunctionCallbackInfo<v8::Value>& info)
+{
+	v8::Isolate* isolate = info.GetIsolate();
+
+	V8ResourceImpl* resource = V8ResourceImpl::Get(isolate->GetEnteredContext());
+	V8_CHECK(resource, "invalid resource");
+
+	V8Entity* _this = V8Entity::Get(info.This());
+	V8_CHECK(_this, "entity is invalid");
+
+	Ref<IPlayer> player = _this->GetHandle().As<IPlayer>();
+
+	player->ClearBloodDamage();
+}
+
 static void AddWeaponComponent(const v8::FunctionCallbackInfo<v8::Value>& info)
 {
 	v8::Isolate* isolate = info.GetIsolate();
@@ -576,11 +559,11 @@ static void Kick(const v8::FunctionCallbackInfo<v8::Value>& info)
 	V8_GET_ISOLATE_CONTEXT();
 	V8_CHECK(info.Length() == 0 || info.Length() == 1, "0 or 1 arguments expected");
 
-	V8_GET_THIS_ENTITY(_this, IPlayer);
+	V8_GET_THIS_BASE_OBJECT(_this, IPlayer);
 	
 	if (info.Length() == 1)
 	{
-		V8_TO_STRING(1, reason);
+		V8_ARG_TO_STRING(1, reason);
 		_this->Kick(reason);
 	}
 	else
@@ -613,12 +596,17 @@ static void StaticGetByID(const v8::FunctionCallbackInfo<v8::Value>& info)
 	alt::Ref<alt::IEntity> entity = alt::ICore::Instance().GetEntityByID(id);
 
 	if (entity && entity->GetType() == alt::IEntity::Type::PLAYER)
-		info.GetReturnValue().Set(resource->GetOrCreateEntity(entity.Get(), "Entity")->GetJSVal());
+	{
+		V8_RETURN_BASE_OBJECT(entity);
+	}
 	else
-		info.GetReturnValue().Set(v8::Null(isolate));
+	{
+		V8_RETURN_NULL();
+	}
 }
 
-static V8Class v8Player("Player", "Entity", nullptr, [](v8::Local<v8::FunctionTemplate> tpl) {
+extern V8Class v8Entity;
+extern V8Class v8Player("Player", v8Entity, nullptr, [](v8::Local<v8::FunctionTemplate> tpl) {
 	v8::Isolate* isolate = v8::Isolate::GetCurrent();
 
 	v8::Local<v8::ObjectTemplate> proto = tpl->PrototypeTemplate();
@@ -655,6 +643,7 @@ static V8Class v8Player("Player", "Entity", nullptr, [](v8::Local<v8::FunctionTe
 	proto->Set(v8::String::NewFromUtf8(isolate, "setDateTime"), v8::FunctionTemplate::New(isolate, &SetDateTime));
 	proto->Set(v8::String::NewFromUtf8(isolate, "setWeather"), v8::FunctionTemplate::New(isolate, &SetWeather));
 
+	proto->Set(v8::String::NewFromUtf8(isolate, "clearBloodDamage"), v8::FunctionTemplate::New(isolate, &ClearBloodDamage));
 	proto->Set(v8::String::NewFromUtf8(isolate, "giveWeapon"), v8::FunctionTemplate::New(isolate, &GiveWeapon));
 	proto->Set(v8::String::NewFromUtf8(isolate, "removeWeapon"), v8::FunctionTemplate::New(isolate, &RemoveWeapon));
 	proto->Set(v8::String::NewFromUtf8(isolate, "removeAllWeapons"), v8::FunctionTemplate::New(isolate, &RemoveAllWeapons));
